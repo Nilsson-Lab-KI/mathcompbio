@@ -272,6 +272,44 @@ NACorrect[x_?VectorQ, p_] :=
 	LinearSolve[NACorrectionMatrix[Length[x]-1, p], x]
 
 
+(* Import a list of mixtures of product distributions from a tab-separated text file.
+   Tihs format supports only a single element. Although the format supports any product distribution,
+   we virtually always use TracerPurityIsotopomerDistribution or NaturalIsotopomerDistribution,
+   so this function accepts at most two distinct heavy isotope frequencies. *)
+
+ImportMixtureID::freq = "At most two distinct isotope frequencies is supported (heavy and light)";
+
+ImportMixtureID[fileName_String] :=
+	Block[{distTable, metId, mixFractions, dist},
+		distTable = Import[fileName, "TSV"];
+		(* split on metabolite column *)
+		distTable = SplitBy[Rest[distTable], First];
+		metId = distTable[[All,1,1]];
+		mixFractions = distTable[[All,All,2]];
+		dist = Drop[distTable, None, None, 2];
+		(* check that all distribution have at most two frequencies *)
+		If[Max[Map[Length[Union[#]]&, dist,{2}]],
+			Message[ImportMixtureID::freq];
+			Return[$Failed]];
+		dist = Map[importTracerID, dist, {2}];
+		(* form mixtures *)
+		Table[
+		Rule[metId[[i]], MixtureIsotopomerDistribution[dist[[i]], mixFractions[[i]]]],
+		{i, Length[dist]}]]
+
+importTracerID[p_?VectorQ]:=
+	Block[{pHeavy},
+		(* distinct heavy atom probabilities *)
+		pHeavy = Union[p];
+		If[Length[pHeavy] == 1,
+			(* single heavy probability *)
+			NaturalIsotopomerDistribution[{Length[p]}, pHeavy],
+			(* two distinct heavy probabilities  *)
+			TracerPurityIsotopomerDistribution[
+				{p /. Thread[Rule[pHeavy, {0,1}]]},
+				{pHeavy[[2]]}, {pHeavy[[1]]}]]]
+
+
 End[];
 
 EndPackage[];
