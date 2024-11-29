@@ -60,6 +60,7 @@ ReduceSingleInputs;
 MIDResidual;
 MIDJacobian;
 EMUDiffEquation;
+ReadFluxState;
 
 
 Begin["NilssonLab`EMUTracing`Private`"];
@@ -117,6 +118,24 @@ EMUFluxMap[n_, nu_, revi_]["index"] := List @@ EMUFluxMap[n, nu, revi][Range[n]]
 (*Total number of fluxes*)
 
 NumberOfFluxes[EMUFluxMap[n_, nu_, revi_]] := nu + n + Length[revi]
+
+
+(* Read a flux state in the EMU model format *)
+
+ReadFluxState[fileName_String, M_MetabolicNetwork, emap_EMUFluxMap] :=
+	Block[{repl, B, nu, nr},
+		(* assign zero to reverse (_r) fluxes for irreversible reactions *)
+		repl = Dispatch[Join[
+			Map[(Rule@@#)&, Import[fileName]],
+			{_String -> 0.}]];
+		B = BoundaryNetwork[M];
+		(* list of uptake/fwd/rev/release fluxes *)
+		nu = Length[InputMetabolites[M]];
+		nr = Length[OutputMetabolites[M]];
+		FluxState @@ ({Table[StringJoin[ReactionID[r], "_f"], {r, Reactions[M]}],
+			 Table[StringJoin[ReactionID[r], "_r"], {r, Reactions[M]}],
+			 Take[BoundaryFluxNames[B], nu],
+			 Take[BoundaryFluxNames[B], -nr]} /. repl)]
 
 
 (* Stoichiometry matrix over the EMU flux vector *)
